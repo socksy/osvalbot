@@ -3,9 +3,8 @@ from twisted.internet import protocol, reactor
 from collections import Counter
 import random
 import collections
-import os, re
+import os, re, math, time
 import train
-import math
 #from pprint import pprint
 
 class MarkovChain(object):
@@ -92,6 +91,7 @@ class Osvalbot(irc.IRCClient):
         print ("Joined " +channel)
     def kickedFrom(self, channel, kicker, message):
         self.join(channel)
+        time.sleep(5)
         self.say(channel, "If you don't like me, stop talking to and about me! :(")
     
 
