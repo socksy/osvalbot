@@ -5,6 +5,7 @@ import random
 import collections
 import os, re
 import train
+import math
 #from pprint import pprint
 
 class MarkovChain(object):
@@ -65,7 +66,7 @@ def classify(msg):
     cat = train.classify(msg)
     if not cat:
         return "I have no thoughts on the matter."
-    return cat.name
+    return cat.name +', '+ str(math.exp(cat.prob))
 
 def train_it(fuck_off=None):
     train.do_training()
@@ -92,6 +93,7 @@ class Osvalbot(irc.IRCClient):
     def kickedFrom(self, channel, kicker, message):
         self.join(channel)
         self.say(channel, "If you don't like me, stop talking to and about me! :(")
+    
 
     def privmsg(self, user, channel, msg):
         seeded = False
@@ -104,20 +106,10 @@ class Osvalbot(irc.IRCClient):
                 print msg
                 if msg[0] == '!':
                     commanding = True
-                    commandmatch = re.match("!(\w*) ", msg)
-                    if commandmatch:
-                        print "firstmatch type"
-                        command = commandmatch.group(1)
-                    else:
-                        commandmatch = re.match("!(.*)", msg)
-                        command = commandmatch.group(1) #too many ifs
-                    commandmatch = re.match("!"+command+" (.*)", msg)
-                    if commandmatch:
-                        command_args = commandmatch.group(1)
-                    else:
-                        command_args = None
-                    print("command "+command)
-                    if command_args :print(", args \""+command_args+"\"")
+                    #probably not idiomatic? Can't seem to assign to two values
+                    temp = _get_command(msg)
+                    command = temp[0]
+                    command_args = temp[1]
                 elif msg[0] == '$':
                     msg = msg[1:]
                     seeded = True
@@ -129,7 +121,8 @@ class Osvalbot(irc.IRCClient):
             if seeded:
                 sentence = self.factory.environment.markov.generate(2, seed=msg)
             elif commanding:
-                sentence = str(self.factory.environment.commands[command](command_args))
+                if command in self.factory.environment.commands:
+                    sentence = str(self.factory.environment.commands[command](command_args))
             else:
                 sentence = self.factory.environment.markov.generate(2)
             if sentence:
@@ -137,11 +130,31 @@ class Osvalbot(irc.IRCClient):
         else:
             self.factory.environment.markov.add(msg, 2, write_to_file=True)
 
+def _get_command(msg):
+    #A bit ugly, this matches twice instead of using one regex
+    #with whitespace before command
+    commandmatch = re.match("!(\w*) ", msg)
+    if commandmatch:
+        print "firstmatch type"
+        command = commandmatch.group(1)
+    else:
+        commandmatch = re.match("!(.*)", msg)
+        command = commandmatch.group(1) 
+    #without whitespace
+    commandmatch = re.match("!"+command+" (.*)", msg)
+    if commandmatch:
+        command_args = commandmatch.group(1)
+    else:
+        command_args = None
+    print("command "+command)
+    if command_args :print(", args \""+command_args+"\"")
+    return (command, command_args)
+
 
 class OsvalbotFactory(protocol.ClientFactory):
     protocol = Osvalbot
 
-    def __init__(self, channels=["#stacs", "#stacs2"], nickname="osvalbot", chattiness=0.01):
+    def __init__(self, channels=["#stacs", "#stacs2"], nickname="osvalbot", chattiness=0.001):
         self.channels = channels
         self.nickname = nickname
         self.environment = EnvironmentStuff()
