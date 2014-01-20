@@ -57,6 +57,9 @@ def classify(text):
         if prob > max_prob:
             best = cat
             max_prob = prob
+    #I realise that's not a fantastic idea (adding prob property to the object)
+    if best:
+        best.prob = max_prob
     return best
 
 def get_stopwords(filename):
