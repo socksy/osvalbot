@@ -13,3 +13,9 @@ Karma
     <osvalbot> (incremented *name*)
     <ben> osvalbot: !karma *name*
     <osvalbot> (= 1 (karma *name*))
+
+
+Sentiment Analysis
+---------
+You can't see in this folder because it's another git repo. You can find it here:
+https://github.com/socksy/Twitter-Sentiment-Analysis
