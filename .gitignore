@@ -2,3 +2,8 @@ babbling.txt
 *.swp
 *.swo
 *.pyc
+*~
+scores.json
+bin
+include
+lib*

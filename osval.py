@@ -4,6 +4,8 @@ from collections import Counter
 import random
 import collections
 import os, re, math, time
+import json
+
 import train
 #from pprint import pprint
 
@@ -57,19 +59,36 @@ class EnvironmentStuff(object):
         self.signins = Counter()
         self.signouts = Counter()
         self.kicks = Counter()
+        self.scores = Counter()
+        try:
+            with open("scores.json") as f:
+                self.scores = Counter(json.load(f))
+        except:
+            print ("couldn't load scores.json")
+            pass
         self.markov = MarkovChain()
-        self.commands = {"train": train_it, "clas": classify, "classify": classify} 
+        self.commands = {"train": train_it, "clas": classify, 
+                "classify": classify, "inc": inc, "karma": karma} 
 
-def classify(msg):
+def classify(self, msg):
     print(msg)
     cat = train.classify(msg)
     if not cat:
         return "I have no thoughts on the matter."
     return cat.name +', '+ str(math.exp(cat.prob))
 
-def train_it(fuck_off=None):
+def train_it(self, fuck_off=None):
     train.do_training()
     return "trained!"
+
+def inc(self, msg):
+    self.scores[msg] += 1
+    print self.scores
+    return "(increment "+msg+")"
+
+def karma(self, msg):
+    print ("Requested karma of "+msg+":"+str(self.scores[msg]))
+    return "(= "+str(self.scores[msg])+" (karma "+msg+"))"
 
 class Osvalbot(irc.IRCClient):
     def _get_nickname(self):
@@ -89,6 +108,7 @@ class Osvalbot(irc.IRCClient):
 
     def joined(self, channel):
         print ("Joined " +channel)
+
     def kickedFrom(self, channel, kicker, message):
         self.join(channel)
         time.sleep(5)
@@ -98,6 +118,7 @@ class Osvalbot(irc.IRCClient):
     def privmsg(self, user, channel, msg):
         seeded = False
         commanding = False
+        env = self.factory.environment
         if not user:
             return
         if self.nickname in msg:
@@ -106,10 +127,7 @@ class Osvalbot(irc.IRCClient):
                 print msg
                 if msg[0] == '!':
                     commanding = True
-                    #probably not idiomatic? Can't seem to assign to two values
-                    temp = _get_command(msg)
-                    command = temp[0]
-                    command_args = temp[1]
+                    command, command_args = _get_command(msg)
                 elif msg[0] == '$':
                     msg = msg[1:]
                     seeded = True
@@ -118,17 +136,18 @@ class Osvalbot(irc.IRCClient):
             prefix =''
         
         if prefix or random.random() <= self.factory.chattiness:
+            sentence = False
             if seeded:
-                sentence = self.factory.environment.markov.generate(2, seed=msg)
+                sentence = env.markov.generate(2, seed=msg)
             elif commanding:
-                if command in self.factory.environment.commands:
-                    sentence = str(self.factory.environment.commands[command](command_args))
+                if command in env.commands:
+                    sentence = str(env.commands[command](env, command_args))
             else:
-                sentence = self.factory.environment.markov.generate(2)
+                sentence = env.markov.generate(2)
             if sentence:
                 self.msg(channel, prefix+sentence.lstrip())
         else:
-            self.factory.environment.markov.add(msg, 2, write_to_file=True)
+            env.markov.add(msg, 2, write_to_file=True)
 
 def _get_command(msg):
     #A bit ugly, this matches twice instead of using one regex
@@ -140,14 +159,17 @@ def _get_command(msg):
     else:
         commandmatch = re.match("!(.*)", msg)
         command = commandmatch.group(1) 
+    
     #without whitespace
     commandmatch = re.match("!"+command+" (.*)", msg)
     if commandmatch:
         command_args = commandmatch.group(1)
     else:
         command_args = None
+    
     print("command "+command)
     if command_args :print(", args \""+command_args+"\"")
+    
     return (command, command_args)
 
 
@@ -162,6 +184,9 @@ class OsvalbotFactory(protocol.ClientFactory):
 
     def clientConnectionLost(self, connector, reason):
         print "connection lost"
+        with open("scores.json", 'w') as f:
+            json.dump(self.environment.scores, f, encoding="utf-8")
+            print("written out scores")
         connector.connect()
 
     def clientConnectionFailed(self, connector,reason):
